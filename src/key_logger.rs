@@ -1,65 +1,28 @@
 use rdev::{EventType, Key};
 
 pub struct KeyLogger {
-    tx: std::sync::mpsc::Sender<String>,
+    tx_key: std::sync::mpsc::Sender<(Key, EventType)>,
 }
 
 impl KeyLogger {
-    pub fn new(tx: std::sync::mpsc::Sender<String>) -> Self {
-        Self { tx }
+    pub fn new(tx_key: std::sync::mpsc::Sender<(Key, EventType)>) -> Self {
+        Self { tx_key }
     }
 
     pub fn listen(self) {
-        let mut cursor = 0;
-        let mut word = 0;
-        let mut words = vec!["".to_string()];
+        // TODO: Implement better differentiation between key press and key release for different
+        // keys. For example, we dont need to keep sending KeyPress for Shift while it is held
+        // down, but only once when it is pressed and once when it is released.
+        //
+        // Any further tools like text extraction, etc. can be implemented separately. This
+        // function should only be responsible for sending the key events.
 
-        rdev::listen(move |event| {
-            let key = match event.event_type {
-                EventType::KeyPress(key) => key,
-                _ => return,
-            };
-
-            match key {
-                Key::Space => {
-                    self.tx.send(words[word].clone()).unwrap();
-                    cursor = 0;
-                    word += 1;
-                    words.push("".to_string());
-                }
-                Key::LeftArrow => {
-                    if cursor > 0 {
-                        cursor -= 1;
-                    } else if word > 0 {
-                        word -= 1;
-                        cursor = words[word].len();
-                    }
-                }
-                Key::RightArrow => {
-                    if cursor < words[word].len() {
-                        cursor += 1;
-                    } else if word < words.len() - 1 {
-                        word += 1;
-                        cursor = 0;
-                    }
-                }
-                Key::Backspace | Key::Delete => {
-                    // TODO: Implement backspace and delete
-                }
-                Key::Return => {
-                    // TODO: Implement return
-                }
-                _ => {
-                    if let Some(name) = event.name {
-                        if name.bytes().last() < Some(127_u8) && name.bytes().last() > Some(31_u8) {
-                            for c in name.chars() {
-                                words[word].insert(cursor, c);
-                                cursor += 1;
-                            }
-                        }
-                    }
-                }
-            };
+        rdev::listen(move |event| match event.event_type {
+            EventType::KeyPress(key) | EventType::KeyRelease(key) => {
+                self.tx_key.send((key, event.event_type)).unwrap();
+                return;
+            }
+            _ => (),
         })
         .unwrap();
     }

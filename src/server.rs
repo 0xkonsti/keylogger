@@ -1,4 +1,5 @@
 use __core__::{Message, MessageType, HOST, PORT};
+use rdev::{EventType, Key};
 use tokio::net::{tcp::OwnedReadHalf, TcpListener, TcpStream};
 
 const TRACING_LEVEL: tracing::Level = tracing::Level::DEBUG;
@@ -65,6 +66,13 @@ impl Server {
                                     let payload = message.payload();
                                     //tracing::info!("Text: {:?}", payload.get_data()[0]);
                                     tracing::info!("Text: {:?}", String::from_utf8_lossy(&payload.get_data()[0]));
+                                },
+                                MessageType::Key => {
+                                    let payload = message.payload();
+                                    let data = payload.get_data();
+                                    let key: Key = bincode::deserialize(&data[0]).unwrap();
+                                    let action: EventType = bincode::deserialize(&data[1]).unwrap();
+                                    tracing::info!("Key: {:?} {:?}", key, action);
                                 },
                                 MessageType::Disconnect => {
                                     tracing::info!("Disconnecting");

@@ -1,3 +1,5 @@
+use bincode::serialize;
+use rdev::{EventType, Key};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::tcp::{OwnedReadHalf, OwnedWriteHalf},
@@ -24,6 +26,8 @@ pub enum MessageType {
     AuthFailure = 0x12,
 
     Text = 0x20,
+
+    Key = 0x30,
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +71,8 @@ impl From<u8> for MessageType {
             0x12 => MessageType::AuthFailure,
 
             0x20 => MessageType::Text,
+
+            0x30 => MessageType::Key,
 
             _ => panic!("Invalid message type"),
         }
@@ -176,14 +182,6 @@ impl Message {
         }
     }
 
-    pub fn message_type(&self) -> MessageType {
-        self.header.message_type
-    }
-
-    pub fn payload(&self) -> &Payload {
-        &self.payload
-    }
-
     pub fn text(data: Vec<u8>) -> Self {
         let mut payload = Payload::default();
         payload.add_field(data);
@@ -194,6 +192,27 @@ impl Message {
             payload,
             checksum,
         }
+    }
+
+    pub fn key(key: Key, action: EventType) -> Self {
+        let mut payload = Payload::default();
+        payload.add_field(serialize(&key).unwrap());
+        payload.add_field(serialize(&action).unwrap());
+        let checksum = payload.checksum();
+
+        Message {
+            header: MessageType::Key.into(),
+            payload,
+            checksum,
+        }
+    }
+
+    pub fn message_type(&self) -> MessageType {
+        self.header.message_type
+    }
+
+    pub fn payload(&self) -> &Payload {
+        &self.payload
     }
 
     pub async fn send(&self, stream: &mut OwnedWriteHalf) -> Result<(), String> {
